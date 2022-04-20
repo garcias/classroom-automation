@@ -5,10 +5,10 @@
 // [ ] Create many assignments in a batch
 // [ ] Generate a report about student completion/grades on assignments
 // [ ] Named sheets are refreshed not deleted + created, with option to delete
-// [ ] Allow to set name of sheet in sheet-factory functions
+// [x] Allow to set name of sheet in sheet-factory functions
 // [ ] Generalize some functions to library
 // [ ] Record some tricks for object manipulation into Quiver
-// [ ] Source control
+// [x] Source control
 // [x] copy_content embeds url to the file in the title
 
 function myFunction() {
@@ -87,7 +87,7 @@ function do_refresh_assignments_list() {
       var assignments_list = assignments.map( 
         course => Object.assign( course, {include: false} ) // add the property "include" for selection
       );
-      sheet = output_objects( assignments_list );
+      sheet = output_objects( assignments_list, 'assignments' );
       sheet.setName( 'assignments' );
 
       //set checkbox validation on the last column "include"
@@ -317,9 +317,9 @@ function output_arrays( data ) {  // data is an array of objects; returns an unn
   return sheet;
 }
 
-function output_objects( data ) {  // data is an array of objects; returns an unnamed Sheet
+function output_objects( data, new_name=undefined ) {  // data is an array of objects; returns an unnamed Sheet
   if ( data.length < 1 ) throw 'output_objects: array of objects is empty'
-  var sheet = SpreadsheetApp.getActive().insertSheet();
+  var sheet = SpreadsheetApp.getActive().insertSheet( new_name );
   headers = Object.keys( data[0] );
   num_cols = headers.length;
   num_rows = 1;
