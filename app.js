@@ -45,16 +45,15 @@ function myFunction() {
   // Classroom.Courses.Coursework.create( course_id )
 
   course_id = '535370341314';  // KEEP test course
-  // symp_topic_id = Classroom.Courses.Topics.create( {name: 'Symposium project' }, course_id ).topicId;
-  setup_journals( course_id );
 }
 
 function cleanup_journals() {
   course_id = '535370341314';
   batch_sheet = SpreadsheetApp.getActive().getSheetByName('batch');
-  specs = read_sheet_to_specs( batch_sheet );
-  topics = specs.map( spec => spec.topicId );
+  rows = read_sheet_to_objects( batch_sheet );
+  topics = rows.filter( row => row.include ).map( row => spec_journal(row).topicId );
   unique = [ ... new Set( topics ) ];
+  Logger.log(unique);
   unique.forEach( topic_id => { 
     response = Classroom.Courses.CourseWork.list( course_id, { courseWorkStates: ['DRAFT', 'PUBLISHED'] } );
     assignment_ids = response.courseWork.filter( a => a.topicId == topic_id  ).map( a => a.id);
@@ -63,42 +62,45 @@ function cleanup_journals() {
   });
 }
 
-function setup_journals( course_id ) {
+function setup_journals( ) {
   batch_sheet = SpreadsheetApp.getActive().getSheetByName('batch');
-  specs = read_sheet_to_specs( batch_sheet )
-  responses = specs.map( spec => {
-    // spec.topicId = topic_id;
-    let response = Classroom.Courses.CourseWork.create( spec, spec.courseId );
-    Logger.log( spec.title );
-    return response;
-  });
+  rows = read_sheet_to_objects( batch_sheet ).filter( row => row.include );
+  // topics = rows.map( row => row.topic );
+  // unique = [ ... new Set( topics ) ];
+
+  rows.forEach( row => {
+    existing_topics = Classroom.Courses.Topics.list( row.courseId ).topic.map( t => t.name );
+    if( !existing_topics.includes( row.topic ) ) {
+      Classroom.Courses.Topics.create( {name: row.topic }, row.courseId );
+    }
+  })
+  
+  responses = rows.map( row => create_assignment(row) );
 }
 
-function read_sheet_to_specs( batch_sheet ) {
-  // convert array of batch objects to array of assignment-spec objects
-  // filters out objects that weren't selected on the sheet
-  return read_sheet_to_objects( batch_sheet )
-    .filter( spec => spec.include )
-    .map( spec => { 
-      return spec_journal( spec.courseId.toString(), spec.topic, spec.title, spec.points, 
-        spec.material.toString(), spec.description.toString(),
-        spec.sch_year, spec.sch_month, spec.sch_day, spec.sch_hour, 0,
-        spec.due_year, spec.due_month, spec.due_day, spec.due_hour, 0,
-      )
-    });
+function create_assignment( row ) {
+  spec = spec_journal( row );
+  let response = Classroom.Courses.CourseWork.create( spec, spec.courseId );
+  Logger.log( spec.title );
+  return response;
 }
 
-function spec_journal(  course_id, topic_name, title, points, materials_id, description,
-  sch_year, sch_month, sch_day, sch_hour, sch_min,  // in local time
-  due_year, due_month, due_day, due_hour, due_min,  // in local time
-) {
-  // convert from sheet-specified format to assignment-spec object that conforms to API spec
-  // creates topics that don't currently exist
+function spec_journal( row ) {
+// convert from sheet-specified format to assignment-spec object that conforms to API spec
+  
+  course_id = row.courseId.toString();
+  topic_name = row.topic;
+  points = row.points;
+  materials_id = row.material.toString();
+  // in local time
+  sch_year = row.sch_year; sch_month = row.sch_month; sch_day = row.sch_day, sch_hour = row.sch_hour; sch_min = 0;
+  due_year = row.due_year; due_month = row.due_month; due_day = row.due_day, due_hour = row.due_hour; due_min = 0;
+  
   existing_topic = Classroom.Courses.Topics.list( course_id ).topic.filter( t => t.name == topic_name );
   if ( existing_topic.length > 0 ) {
     topic_id = existing_topic[0].topicId;
   } else {
-    topic_id = Classroom.Courses.Topics.create( {name: topic_name }, course_id ).topicId;
+    throw `Topic ${topic_name} does not exist for courseId ${course_id}.`
   }
 
   sch_datetime = new Date( sch_year, sch_month - 1, sch_day, sch_hour,      sch_min );
@@ -116,9 +118,9 @@ function spec_journal(  course_id, topic_name, title, points, materials_id, desc
     undefined;  // in case material is blank
 
   return {
-    state: 'DRAFT', workType: 'ASSIGNMENT', title: title, maxPoints: points, topicId: topic_id,
+    state: 'DRAFT', workType: 'ASSIGNMENT', title: row.title, maxPoints: points, topicId: topic_id,
     dueDate: due_date, dueTime: due_time, scheduledTime: sch_datetime.toISOString(),
-    materials: materials_spec, description: description, courseId: course_id,
+    materials: materials_spec, description: row.description, courseId: course_id,
   };
 }
 
