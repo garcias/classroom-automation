@@ -11,16 +11,20 @@
 // [x] Source control
 // [x] copy_content embeds url to the file in the title
 
-function myFunction() {
-  // The comment below will trigger authorization dialog (yes, even as a comment)
-  // ref: https://stackoverflow.com/questions/42796630/
-  // Classroom.Courses.Coursework.create( course_id )
+var TZ = 4; // local time zone offset from GMT
 
+function examples() {
   // var sheet = SpreadsheetApp.getActiveSheet();
   // var sheet = SpreadsheetApp.getActive().getSheetByName("courselist").activate();
   // clear_log();
   // log_objects( list_courses(), "list_courses()" );
-  // log_objects( list_assignments( '453549119831' ), "list_assignments" ); // Chem 126 M pm section
+  // log_objects( list_assignments( '496710505024' ), "list_assignments" ); // Chem 126 M pm section
+  // log_objects( list_assignments_all( '496710505024' ) ); // Chem 126 M pm section
+  // to_delete = ["496710505073"];
+  // to_delete.forEach( id => {
+  //   Classroom.Courses.CourseWork.remove( '496710505024', id );
+  // })
+  // Logger.log( to_delete );
   // var submissions = list_submissions( '453549119831', '453612187654' );  // Week 12 preparation in Chem 126
   // log_objects( submissions, "list_submissions( '453549119831', '453612187654' )" );
   // new_doc_url = merge_submissions( '453549119831', '453612187654' );
@@ -32,7 +36,90 @@ function myFunction() {
   // var sheet = SpreadsheetApp.getActive().getSheetByName('merge');
   // sheet.getRange( 1, 1, 1, 3 ).setValues( [[ 'course', 'assignment', 'submission' ]] );
   // courses = list_courses().map( course => `${course.id}: ${course.name}` ).slice(0,8);
+}
 
+function myFunction() {
+  // The comment below will trigger authorization dialog (yes, even as a comment)
+  // ref: https://stackoverflow.com/questions/42796630/
+  // Classroom.Courses.Coursework.remote( course_id )
+  // Classroom.Courses.Coursework.create( course_id )
+
+  course_id = '535370341314';  // KEEP test course
+  // symp_topic_id = Classroom.Courses.Topics.create( {name: 'Symposium project' }, course_id ).topicId;
+  setup_journals( course_id );
+}
+
+function cleanup_journals() {
+  course_id = '535370341314';
+  batch_sheet = SpreadsheetApp.getActive().getSheetByName('batch');
+  specs = read_sheet_to_specs( batch_sheet );
+  topics = specs.map( spec => spec.topicId );
+  unique = [ ... new Set( topics ) ];
+  unique.forEach( topic_id => { 
+    response = Classroom.Courses.CourseWork.list( course_id, { courseWorkStates: ['DRAFT', 'PUBLISHED'] } );
+    assignment_ids = response.courseWork.filter( a => a.topicId == topic_id  ).map( a => a.id);
+    assignment_ids.forEach( id => { Classroom.Courses.CourseWork.remove( course_id, id ); })
+    Classroom.Courses.Topics.remove( course_id, topic_id ) 
+  });
+}
+
+function setup_journals( course_id ) {
+  batch_sheet = SpreadsheetApp.getActive().getSheetByName('batch');
+  specs = read_sheet_to_specs( batch_sheet )
+  responses = specs.map( spec => {
+    // spec.topicId = topic_id;
+    let response = Classroom.Courses.CourseWork.create( spec, spec.courseId );
+    Logger.log( spec.title );
+    return response;
+  });
+}
+
+function read_sheet_to_specs( batch_sheet ) {
+  // convert array of batch objects to array of assignment-spec objects
+  // filters out objects that weren't selected on the sheet
+  return read_sheet_to_objects( batch_sheet )
+    .filter( spec => spec.include )
+    .map( spec => { 
+      return spec_journal( spec.courseId.toString(), spec.topic, spec.title, spec.points, 
+        spec.material.toString(), spec.description.toString(),
+        spec.sch_year, spec.sch_month, spec.sch_day, spec.sch_hour, 0,
+        spec.due_year, spec.due_month, spec.due_day, spec.due_hour, 0,
+      )
+    });
+}
+
+function spec_journal(  course_id, topic_name, title, points, materials_id, description,
+  sch_year, sch_month, sch_day, sch_hour, sch_min,  // in local time
+  due_year, due_month, due_day, due_hour, due_min,  // in local time
+) {
+  // convert from sheet-specified format to assignment-spec object that conforms to API spec
+  // creates topics that don't currently exist
+  existing_topic = Classroom.Courses.Topics.list( course_id ).topic.filter( t => t.name == topic_name );
+  if ( existing_topic.length > 0 ) {
+    topic_id = existing_topic[0].topicId;
+  } else {
+    topic_id = Classroom.Courses.Topics.create( {name: topic_name }, course_id ).topicId;
+  }
+
+  sch_datetime = new Date( sch_year, sch_month - 1, sch_day, sch_hour,      sch_min );
+  due_datetime = new Date( due_year, due_month - 1, due_day, due_hour + TZ, due_min );
+  if ( due_year && due_month && due_day ) {
+    due_date = {year: due_datetime.getFullYear(), month: due_datetime.getMonth() + 1, day: due_datetime.getDate()};
+    due_time = { hours: due_datetime.getHours(), minutes: due_datetime.getMinutes() };
+  } else {  // in case due date is blank
+    due_date = undefined;
+    due_time = undefined;   
+  }
+  points = points ? points : undefined;  // in case points is blank
+  materials_spec = materials_id ? 
+    [ { driveFile: { driveFile: { id: materials_id }, shareMode: 'STUDENT_COPY'} } ] : 
+    undefined;  // in case material is blank
+
+  return {
+    state: 'DRAFT', workType: 'ASSIGNMENT', title: title, maxPoints: points, topicId: topic_id,
+    dueDate: due_date, dueTime: due_time, scheduledTime: sch_datetime.toISOString(),
+    materials: materials_spec, description: description, courseId: course_id,
+  };
 }
 
 function onOpen(e) {
@@ -82,7 +169,7 @@ function do_refresh_assignments_list() {
     courses = read_sheet_to_objects( course_sheet );
     selected_courses = courses.filter( course => course.include );
     selected_courses_ids = selected_courses.map( course => course.id );
-    assignments = selected_courses_ids.map( id => list_assignments( id ) ).flat(1);
+    assignments = selected_courses_ids.map( id => list_assignments_all( id ) ).flat(1);
     if ( assignments.length > 0 ) {
       var assignments_list = assignments.map( 
         course => Object.assign( course, {include: false} ) // add the property "include" for selection
@@ -254,6 +341,13 @@ function list_courses() { // returns array of { id, section:, courseState:, alte
 
 function list_assignments( course_id ) { // returns array of { id:, title:, state:, topicId:, description:, materials: }
   var response = Classroom.Courses.CourseWork.list( course_id );
+  var assignments = response.courseWork;
+  desired_keys = [ 'id', 'title', 'state', 'courseId', 'topicId', 'description', 'materials' ]
+  return assignments.map( assignment => filter_keys( assignment, desired_keys ) );
+}
+
+function list_assignments_all( course_id ) { // returns array of { id:, title:, state:, topicId:, description:, materials: }
+  var response = Classroom.Courses.CourseWork.list( course_id, { courseWorkStates: ['DRAFT', 'PUBLISHED'] } );
   var assignments = response.courseWork;
   desired_keys = [ 'id', 'title', 'state', 'courseId', 'topicId', 'description', 'materials' ]
   return assignments.map( assignment => filter_keys( assignment, desired_keys ) );
