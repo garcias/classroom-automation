@@ -65,9 +65,6 @@ function cleanup_journals() {
 function setup_journals( ) {
   batch_sheet = SpreadsheetApp.getActive().getSheetByName('batch');
   rows = read_sheet_to_objects( batch_sheet ).filter( row => row.include );
-  // topics = rows.map( row => row.topic );
-  // unique = [ ... new Set( topics ) ];
-
   rows.forEach( row => {
     existing_topics = Classroom.Courses.Topics.list( row.courseId ).topic.map( t => t.name );
     if( !existing_topics.includes( row.topic ) ) {
@@ -103,15 +100,10 @@ function spec_journal( row ) {
     throw `Topic ${topic_name} does not exist for courseId ${course_id}.`
   }
 
-  sch_datetime = new Date( sch_year, sch_month - 1, sch_day, sch_hour,      sch_min );
-  due_datetime = new Date( due_year, due_month - 1, due_day, due_hour + TZ, due_min );
-  if ( due_year && due_month && due_day ) {
-    due_date = {year: due_datetime.getFullYear(), month: due_datetime.getMonth() + 1, day: due_datetime.getDate()};
-    due_time = { hours: due_datetime.getHours(), minutes: due_datetime.getMinutes() };
-  } else {  // in case due date is blank
-    due_date = undefined;
-    due_time = undefined;   
-  }
+  sch_datetime = format_sch_datetime( sch_year, sch_month, sch_day, sch_hour, sch_min );
+  due_date = format_due_date( due_year, due_month, due_day, due_hour, due_min );
+  due_time = format_due_time( due_year, due_month, due_day, due_hour, due_min );
+
   points = points ? points : undefined;  // in case points is blank
   materials_spec = materials_id ? 
     [ { driveFile: { driveFile: { id: materials_id }, shareMode: 'STUDENT_COPY'} } ] : 
@@ -119,9 +111,34 @@ function spec_journal( row ) {
 
   return {
     state: 'DRAFT', workType: 'ASSIGNMENT', title: row.title, maxPoints: points, topicId: topic_id,
-    dueDate: due_date, dueTime: due_time, scheduledTime: sch_datetime.toISOString(),
+    dueDate: due_date, dueTime: due_time, scheduledTime: sch_datetime,
     materials: materials_spec, description: row.description, courseId: course_id,
   };
+}
+
+function format_sch_datetime( sch_year, sch_month, sch_day, sch_hour, sch_min ) {  // formatted as ISO string
+  sch_datetime = new Date( sch_year, sch_month - 1, sch_day, sch_hour, sch_min );
+  return sch_datetime.toISOString();  
+}
+
+function format_due_date( due_year, due_month, due_day, due_hour, due_min ) {
+  due_datetime = new Date( due_year, due_month - 1, due_day, due_hour + TZ, due_min );
+  if ( due_year && due_month && due_day ) {
+    due_date = {year: due_datetime.getFullYear(), month: due_datetime.getMonth() + 1, day: due_datetime.getDate()};
+  } else {  // in case due date is blank
+    due_date = undefined;
+  }
+  return due_date;
+}
+
+function format_due_time( due_year, due_month, due_day, due_hour, due_min ) {
+  due_datetime = new Date( due_year, due_month - 1, due_day, due_hour + TZ, due_min );
+  if ( due_year && due_month && due_day ) {
+    due_time = { hours: due_datetime.getHours(), minutes: due_datetime.getMinutes() };
+  } else {  // in case due date is blank
+    due_time = undefined;   
+  }
+  return due_time;
 }
 
 function onOpen(e) {
