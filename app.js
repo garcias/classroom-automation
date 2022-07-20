@@ -45,6 +45,30 @@ function myFunction() {
   // Classroom.Courses.Coursework.create( course_id )
 
   course_id = '535370341314';  // KEEP test course
+  material = create_material_drive( 
+    course_id, "Syllabus", "Information", "Read this", "1xZh9pA1okvjhnu94qOxPyXa2q6l0e2RtBlaqZxna2dI"
+  );
+  Logger.log( JSON.stringify(response) );
+}
+
+function create_material_drive( course_id, title, topic_name, description, material_id ) {
+  material_spec = {
+    title: title, topicId: get_topic_id( course_id, topic_name ), description: description, state: 'DRAFT',
+    materials: [{ driveFile: { shareMode: "VIEW", driveFile: { id: material_id, title: title }} }]
+  };
+  response = Classroom.Courses.CourseWorkMaterials.create( material_spec, course_id)
+  return response;
+}
+
+function get_topic_id( course_id, topic_name ) {  // creates the topic if it doesn't exist
+  existing_topic = Classroom.Courses.Topics.list( course_id ).topic.filter( t => t.name == topic_name );
+  if ( existing_topic.length > 0 ) {
+    topic_id = existing_topic[0].topicId;
+  } else {
+    response = Classroom.Courses.Topics.create( {name: topic_name }, course_id );
+    topic_id = response.topicId;
+  }
+  return topic_id;
 }
 
 function cleanup_journals() {
