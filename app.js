@@ -51,6 +51,24 @@ function myFunction() {
   Logger.log( JSON.stringify(response) );
 }
 
+function cleanup_journals() {
+  course_id = '535370341314';
+  batch_sheet = SpreadsheetApp.getActive().getSheetByName('batch');
+  rows = read_sheet_to_objects( batch_sheet );
+  topics = rows.filter( row => row.include ).map( row => spec_journal(row).topicId );
+  unique = [ ... new Set( topics ) ];
+  Logger.log(unique);
+  unique.forEach( topic_id => { 
+    response = Classroom.Courses.CourseWork.list( course_id, { courseWorkStates: ['DRAFT', 'PUBLISHED'] } );
+    assignment_ids = response.courseWork.filter( a => a.topicId == topic_id  ).map( a => a.id);
+    assignment_ids.forEach( id => { Classroom.Courses.CourseWork.remove( course_id, id ); })
+    Classroom.Courses.Topics.remove( course_id, topic_id ) 
+  });
+}
+
+
+// ASSIGNMENT CREATION AND SPECIFICATION FUNCTIONS
+
 function create_material_drive( course_id, title, topic_name, description, material_id ) {
   material_spec = {
     title: title, topicId: get_topic_id( course_id, topic_name ), description: description, state: 'DRAFT',
@@ -70,24 +88,6 @@ function get_topic_id( course_id, topic_name ) {  // creates the topic if it doe
   }
   return topic_id;
 }
-
-function cleanup_journals() {
-  course_id = '535370341314';
-  batch_sheet = SpreadsheetApp.getActive().getSheetByName('batch');
-  rows = read_sheet_to_objects( batch_sheet );
-  topics = rows.filter( row => row.include ).map( row => spec_journal(row).topicId );
-  unique = [ ... new Set( topics ) ];
-  Logger.log(unique);
-  unique.forEach( topic_id => { 
-    response = Classroom.Courses.CourseWork.list( course_id, { courseWorkStates: ['DRAFT', 'PUBLISHED'] } );
-    assignment_ids = response.courseWork.filter( a => a.topicId == topic_id  ).map( a => a.id);
-    assignment_ids.forEach( id => { Classroom.Courses.CourseWork.remove( course_id, id ); })
-    Classroom.Courses.Topics.remove( course_id, topic_id ) 
-  });
-}
-
-
-// ASSIGNMENT CREATION AND SPECIFICATION FUNCTIONS
 
 function setup_journals( ) {
   // batch creates assignments, specified in sheet "batch", and marked as "include"
