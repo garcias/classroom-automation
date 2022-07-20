@@ -2,7 +2,7 @@
 // ========
 // [ ] Allow to set location of new merge file
 // [ ] Minimize scopes requested
-// [ ] Create many assignments in a batch
+// [x] Create many assignments in a batch
 // [ ] Generate a report about student completion/grades on assignments
 // [ ] Named sheets are refreshed not deleted + created, with option to delete
 // [x] Allow to set name of sheet in sheet-factory functions
@@ -62,7 +62,13 @@ function cleanup_journals() {
   });
 }
 
+
+// ASSIGNMENT CREATION AND SPECIFICATION FUNCTIONS
+
 function setup_journals( ) {
+  // batch creates assignments, specified in sheet "batch", and marked as "include"
+  // expects rows to specify courseId, topic name, title, schedule date/time
+  // optionally expects due date/time, points, fileId of material to attach, description
   batch_sheet = SpreadsheetApp.getActive().getSheetByName('batch');
   rows = read_sheet_to_objects( batch_sheet ).filter( row => row.include );
   rows.forEach( row => {
@@ -121,7 +127,7 @@ function format_sch_datetime( sch_year, sch_month, sch_day, sch_hour, sch_min ) 
   return sch_datetime.toISOString();  
 }
 
-function format_due_date( due_year, due_month, due_day, due_hour, due_min ) {
+function format_due_date( due_year, due_month, due_day, due_hour, due_min ) {  // returns { year: , month: , day: }
   due_datetime = new Date( due_year, due_month - 1, due_day, due_hour + TZ, due_min );
   if ( due_year && due_month && due_day ) {
     due_date = {year: due_datetime.getFullYear(), month: due_datetime.getMonth() + 1, day: due_datetime.getDate()};
@@ -131,7 +137,7 @@ function format_due_date( due_year, due_month, due_day, due_hour, due_min ) {
   return due_date;
 }
 
-function format_due_time( due_year, due_month, due_day, due_hour, due_min ) {
+function format_due_time( due_year, due_month, due_day, due_hour, due_min ) {  // returns { hours: , minutes: }
   due_datetime = new Date( due_year, due_month - 1, due_day, due_hour + TZ, due_min );
   if ( due_year && due_month && due_day ) {
     due_time = { hours: due_datetime.getHours(), minutes: due_datetime.getMinutes() };
@@ -140,6 +146,9 @@ function format_due_time( due_year, due_month, due_day, due_hour, due_min ) {
   }
   return due_time;
 }
+
+
+// SCRIPTS
 
 function onOpen(e) {
   // Classroom.Courses.Coursework.create( course_id )
@@ -233,6 +242,9 @@ function do_refresh_course_list() {
     SpreadsheetApp.getUi().alert( `${e}. Could not access course list.` );
   }
 }
+
+
+// DOCUMENT MANIPULATION FUNCTIONS
 
 function merge_submissions( course_id, assignment_id, limit=undefined ) {  // returns url of new document
   // sort and create array of { email:, fileId: }
@@ -339,6 +351,8 @@ function replaceFootnotes( source_body ) {
   }
 }
 
+// BASIC LISTING FUNCTIONS, return object or [object]
+
 function list_students( course_id ) { // returns hash table of {id: {email: , name: }}
   var response = Classroom.Courses.Students.list( course_id );
   students = response.students.map( student => {
@@ -406,9 +420,12 @@ function reset_coursework( course_id ) {
   })
 }
 
-function filter_keys( source_object, keys_array ) {
+function filter_keys( source_object, keys_array ) {  // returns object with subset of properties
   return keys_array.reduce( (obj, key) => { obj[key] = source_object[key]; return obj}, {} )
 }
+
+
+// SHEET MANIPULATION FUNCTIONS
 
 function read_sheet_to_objects( sheet ) {  // sheet organized in table format; returns array of objects
   var rows = sheet.getDataRange().getValues();
