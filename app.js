@@ -20,6 +20,10 @@ function myFunction() {
   // Classroom.Courses.Coursework.create( course_id )
 
   course_id = '535370341314';  // KEEP test course
+  var source = SpreadsheetApp.getActive().getSheetByName("courses");
+  var target = SpreadsheetApp.getActive().getSheetByName("courses1");
+  array_of_objects = read_sheet_to_objects( source );
+  output_objects( array_of_objects, target);
 }
 
 function examples() {
@@ -214,15 +218,15 @@ function do_refresh_assignments_list() {
   
   try {
     var course_sheet = SpreadsheetApp.getActive().getSheetByName('courses');
-    courses = read_sheet_to_objects( course_sheet );
-    selected_courses = courses.filter( course => course.include );
+    var courses = read_sheet_to_objects( course_sheet );
+    var selected_courses = courses.filter( course => course.include );
     selected_courses_ids = selected_courses.map( course => course.id );
     assignments = selected_courses_ids.map( id => list_assignments_all( id ) ).flat(1);
     if ( assignments.length > 0 ) {
       var assignments_list = assignments.map( 
         course => Object.assign( course, {include: false} ) // add the property "include" for selection
       );
-      sheet = output_objects( assignments_list, 'assignments' );
+      sheet = output_objects( assignments_list );
       sheet.setName( 'assignments' );
 
       //set checkbox validation on the last column "include"
@@ -456,32 +460,27 @@ function read_sheet_to_objects( sheet ) {  // sheet organized in table format; r
   return data;
 }
 
-function output_arrays( data ) {  // data is an array of objects; returns an unnamed Sheet
-  var sheet = SpreadsheetApp.getActive().insertSheet();
+function output_arrays( data, sheet = undefined ) {  // data is an array of objects; returns an unnamed Sheet
+  if ( data.length < 1 ) throw 'output_arrays: array is empty';
+  if ( sheet == null ) {
+    sheet = SpreadsheetApp.getActive().insertSheet();
+  }
   num_rows = data.length;
   num_cols = data[0].length;
-  sheet.insertRowsAfter(1, num_rows);
+  // sheet.insertRowsAfter(1, num_rows);
+  sheet.getDataRange().clearContent();
   insert_range = sheet.getRange( 1, 1, num_rows, num_cols );
   insert_range.setValues( data );
   clear_empty_rows_and_columns( sheet );
   return sheet;
 }
 
-function output_objects( data, new_name=undefined ) {  // data is an array of objects; returns an unnamed Sheet
-  if ( data.length < 1 ) throw 'output_objects: array of objects is empty'
-  var sheet = SpreadsheetApp.getActive().insertSheet( new_name );
+function output_objects( data, sheet = undefined ) {  // data is an array of objects; returns an unnamed Sheet
+  if ( data.length < 1 ) throw 'output_objects: array of objects is empty';
   headers = Object.keys( data[0] );
-  num_cols = headers.length;
-  num_rows = 1;
-  insert_range = sheet.getRange( 1, 1, num_rows, num_cols );
-  insert_range.setValues( [ headers ] );
-
-  num_rows = data.length;
-  arr = data.map( obj => headers.map( header => obj[header] ) );
-  sheet.insertRowsAfter( 1, num_rows);
-  insert_range = sheet.getRange( 2, 1, num_rows, num_cols );
-  insert_range.setValues( arr );
-  clear_empty_rows_and_columns( sheet );
+  var body = data.map( row => Object.values( row ) )
+  new_arr = [headers].concat(body);
+  var sheet = output_arrays( new_arr, sheet );
   sheet.setFrozenRows(1);
   return sheet;
 }
