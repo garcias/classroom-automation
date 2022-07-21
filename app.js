@@ -13,6 +13,15 @@
 
 var TZ = 4; // local time zone offset from GMT
 
+function myFunction() {
+  // The comment below will trigger authorization dialog (yes, even as a comment)
+  // ref: https://stackoverflow.com/questions/42796630/
+  // Classroom.Courses.Coursework.remote( course_id )
+  // Classroom.Courses.Coursework.create( course_id )
+
+  course_id = '535370341314';  // KEEP test course
+}
+
 function examples() {
   // var sheet = SpreadsheetApp.getActiveSheet();
   // var sheet = SpreadsheetApp.getActive().getSheetByName("courselist").activate();
@@ -36,19 +45,6 @@ function examples() {
   // var sheet = SpreadsheetApp.getActive().getSheetByName('merge');
   // sheet.getRange( 1, 1, 1, 3 ).setValues( [[ 'course', 'assignment', 'submission' ]] );
   // courses = list_courses().map( course => `${course.id}: ${course.name}` ).slice(0,8);
-}
-
-function myFunction() {
-  // The comment below will trigger authorization dialog (yes, even as a comment)
-  // ref: https://stackoverflow.com/questions/42796630/
-  // Classroom.Courses.Coursework.remote( course_id )
-  // Classroom.Courses.Coursework.create( course_id )
-
-  course_id = '535370341314';  // KEEP test course
-  material = create_material_drive( 
-    course_id, "Syllabus", "Information", "Read this", "1xZh9pA1okvjhnu94qOxPyXa2q6l0e2RtBlaqZxna2dI"
-  );
-  Logger.log( JSON.stringify(response) );
 }
 
 function cleanup_journals() {
