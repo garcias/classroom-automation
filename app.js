@@ -20,10 +20,8 @@ function myFunction() {
   // Classroom.Courses.Coursework.create( course_id )
 
   course_id = '535370341314';  // KEEP test course
-  var source = SpreadsheetApp.getActive().getSheetByName("courses");
-  var target = SpreadsheetApp.getActive().getSheetByName("courses1");
-  array_of_objects = read_sheet_to_objects( source );
-  output_objects( array_of_objects, target);
+  batch_sheet = SpreadsheetApp.getActive().getSheetByName('batch');
+  SpreadsheetApp.getActive().setActiveSheet( batch_sheet );
 }
 
 function examples() {
@@ -64,6 +62,103 @@ function cleanup_journals() {
     assignment_ids.forEach( id => { Classroom.Courses.CourseWork.remove( course_id, id ); })
     Classroom.Courses.Topics.remove( course_id, topic_id ) 
   });
+}
+
+// SCRIPTS
+
+function onOpen(e) {
+  // Classroom.Courses.Coursework.create( course_id )
+  SpreadsheetApp.getUi()
+    .createMenu('Classroom')
+    .addItem('Refresh course list', 'do_refresh_course_list' )
+    .addItem('Refresh assignments list', 'do_refresh_assignments_list' )
+    .addItem('Merge submissions ...', 'do_merge_submissions' )
+    .addToUi();
+  console.info("UI built")
+}
+
+function do_refresh_course_list() {  // modifies or creates sheet named 'courses'
+  var active = SpreadsheetApp.getActive();
+  var sheet = active.getSheetByName( 'courses' ) || active.insertSheet( 'courses' );
+
+  // Try to remember which were selected for inclusion before
+  // If the sheet doesn't exist, all this will be null and include will be false for every row
+  current_data = read_sheet_to_objects( sheet );
+  include_array = current_data.map( row => { return [ row.id, row.include ] } );
+  include_map = Object.fromEntries( include_array );
+  
+  try {
+    var course_list = list_courses().map( 
+      course => Object.assign( course, { include: include_map[course.id] || false } ) 
+    );  // add the property "include" for selection
+  } catch(e) {
+    SpreadsheetApp.getUi().alert( `${e}. Could not access course list.` );
+  }
+
+  var sheet = output_objects( course_list, sheet );
+
+  // set checkbox validation on the last column "include"
+  last_column = sheet.getLastColumn();
+  number_rows = course_list.length;
+  var rule = SpreadsheetApp.newDataValidation().requireCheckbox().build();
+  sheet.getRange( 2, last_column, number_rows, 1 ).setDataValidation( rule );
+}
+
+function do_refresh_assignments_list() {
+  var active = SpreadsheetApp.getActive();
+  var sheet = active.getSheetByName( 'assignments' ) || active.insertSheet( 'assignments' );
+
+  current_data = read_sheet_to_objects( sheet );
+  include_array = current_data.map( row => { return [ row.id, row.include ] } );
+  include_map = Object.fromEntries( include_array );
+  
+  try {
+    var course_sheet = SpreadsheetApp.getActive().getSheetByName('courses');
+    var courses = read_sheet_to_objects( course_sheet );
+    var selected_courses = courses.filter( course => course.include );
+    selected_courses_ids = selected_courses.map( course => course.id );
+    assignments = selected_courses_ids.map( id => list_assignments_all( id ) ).flat(1);
+    if ( assignments.length > 0 ) {
+      var assignments_list = assignments.map( 
+        assignment => Object.assign( assignment, { include: include_map[assignment.id] || false } )
+      );  // add the property "include" for selection
+      sheet = output_objects( assignments_list, sheet );
+
+      //set checkbox validation on the last column "include"
+      last_column = sheet.getLastColumn();
+      number_rows = assignments.length;
+      var rule = SpreadsheetApp.newDataValidation().requireCheckbox().build();
+      sheet.getRange( 2, last_column, number_rows, 1 ).setDataValidation( rule );
+      active.setActiveSheet( sheet );
+    } else {
+      SpreadsheetApp.getUi().alert( `Selected courses do not contain assignments.` );
+    }
+  } catch(e) {
+    SpreadsheetApp.getUi().alert( `${e}. Could not access assignments for selected courses.` );
+  }
+}
+
+function do_merge_submissions() {
+  var active = SpreadsheetApp.getActive();
+  var sheet = active.getSheetByName( 'merge' ) || active.insertSheet( 'merge' );
+
+  // current_data = read_sheet_to_objects( sheet );
+  // include_array = current_data.map( row => { return [ row.id, row.include ] } );
+  // include_map = Object.fromEntries( include_array );
+
+  try {
+    var assignment_sheet = SpreadsheetApp.getActive().getSheetByName('assignments');
+    assignments = read_sheet_to_objects( assignment_sheet );
+    selected_assignments = assignments.filter( assignment => assignment.include );
+    target_urls = selected_assignments.map( assignment => ( { 
+      id: assignment.id, title: assignment.title,
+      url: merge_submissions( assignment.courseId, assignment.id )
+    }));
+    sheet = output_objects( target_urls, sheet );
+    active.setActiveSheet( sheet );
+  } catch(e) {
+    SpreadsheetApp.getUi().alert( `Could not find submissions for selected assignment because of error: ${e}.`);
+  }
 }
 
 
@@ -169,102 +264,6 @@ function format_due_time( due_year, due_month, due_day, due_hour, due_min ) {  /
     due_time = undefined;   
   }
   return due_time;
-}
-
-
-// SCRIPTS
-
-function onOpen(e) {
-  // Classroom.Courses.Coursework.create( course_id )
-  SpreadsheetApp.getUi()
-    .createMenu('Classroom')
-    .addItem('Refresh course list', 'do_refresh_course_list' )
-    .addItem('Refresh assignments list', 'do_refresh_assignments_list' )
-    .addItem('Merge submissions ...', 'do_merge_submissions' )
-    .addToUi();
-  console.info("UI built")
-}
-
-function do_merge_submissions() {
-  var active = SpreadsheetApp.getActive();
-  // delete sheet if it exists
-  try {
-    var sheet = active.getSheetByName( 'merge' );
-    active.deleteSheet( sheet );
-  } catch(e) { Logger.log(e) }
-
-  try {
-    var assignment_sheet = SpreadsheetApp.getActive().getSheetByName('assignments');
-    assignments = read_sheet_to_objects( assignment_sheet );
-    selected_assignments = assignments.filter( assignment => assignment.include );
-    target_urls = selected_assignments.map( assignment => ( { 
-      id: assignment.id, title: assignment.title,
-      url: merge_submissions( assignment.courseId, assignment.id )
-    }));
-    sheet = output_objects( target_urls );
-    sheet.setName( 'merge' );
-  } catch(e) {
-    SpreadsheetApp.getUi().alert( `Could not find submissions for selected assignment because of error: ${e}.`);
-  }
-}
-
-function do_refresh_assignments_list() {
-  var active = SpreadsheetApp.getActive();
-  // delete sheet if it exists
-  try {
-    var sheet = active.getSheetByName( 'assignments' );
-    active.deleteSheet( sheet );
-  } catch(e) { Logger.log(e) }
-  
-  try {
-    var course_sheet = SpreadsheetApp.getActive().getSheetByName('courses');
-    var courses = read_sheet_to_objects( course_sheet );
-    var selected_courses = courses.filter( course => course.include );
-    selected_courses_ids = selected_courses.map( course => course.id );
-    assignments = selected_courses_ids.map( id => list_assignments_all( id ) ).flat(1);
-    if ( assignments.length > 0 ) {
-      var assignments_list = assignments.map( 
-        course => Object.assign( course, {include: false} ) // add the property "include" for selection
-      );
-      sheet = output_objects( assignments_list );
-      sheet.setName( 'assignments' );
-
-      //set checkbox validation on the last column "include"
-      last_column = sheet.getLastColumn();
-      number_rows = assignments.length;
-      var rule = SpreadsheetApp.newDataValidation().requireCheckbox().build();
-      sheet.getRange( 2, last_column, number_rows, 1 ).setDataValidation( rule );
-    } else {
-      SpreadsheetApp.getUi().alert( `Selected courses do not contain assignments.` );
-    }
-  } catch(e) {
-    SpreadsheetApp.getUi().alert( `${e}. Could not access assignments for selected courses.` );
-  }
-}
-
-function do_refresh_course_list() {
-  var active = SpreadsheetApp.getActive();
-  // delete sheet if it exists
-  try {
-    var sheet = active.getSheetByName( 'courses' );
-    active.deleteSheet( sheet );
-  } catch(e) { Logger.log(e) }
-  
-  try {
-    var course_list = list_courses().map( 
-      course => Object.assign( course, {include: false} ) // add the property "include" for selection
-    );
-    sheet = output_objects( course_list );
-    sheet.setName( 'courses' );
-
-    //set checkbox validation on the last column "include"
-    last_column = sheet.getLastColumn();
-    number_rows = course_list.length;
-    var rule = SpreadsheetApp.newDataValidation().requireCheckbox().build();
-    sheet.getRange( 2, last_column, number_rows, 1 ).setDataValidation( rule );
-  } catch(e) {
-    SpreadsheetApp.getUi().alert( `${e}. Could not access course list.` );
-  }
 }
 
 
