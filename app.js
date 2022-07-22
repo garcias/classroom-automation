@@ -1,15 +1,17 @@
 // TODO
 // ========
-// [ ] Allow to set location of new merge file
 // [ ] Minimize scopes requested
 // [x] Create many assignments in a batch
 // [ ] Generate a report about student completion/grades on assignments
-// [ ] Named sheets are refreshed not deleted + created, with option to delete
+// [x] Named sheets are refreshed not deleted + created, with option to delete
 // [x] Allow to set name of sheet in sheet-factory functions
 // [ ] Generalize some functions to library
 // [ ] Record some tricks for object manipulation into Quiver
 // [x] Source control
 // [x] copy_content embeds url to the file in the title
+// [x] Refresh submissions list
+// [ ] Automatically refresh submissions list after merge
+// [ ] Test do_grade_completion to see if patching works
 
 var TZ = 4; // local time zone offset from GMT
 
@@ -21,31 +23,20 @@ function myFunction() {
 
   course_id = '535370341314';  // KEEP test course
   batch_sheet = SpreadsheetApp.getActive().getSheetByName('batch');
-  SpreadsheetApp.getActive().setActiveSheet( batch_sheet );
+  // SpreadsheetApp.getActive().setActiveSheet( batch_sheet );
 }
 
 function examples() {
-  // var sheet = SpreadsheetApp.getActiveSheet();
-  // var sheet = SpreadsheetApp.getActive().getSheetByName("courselist").activate();
   // clear_log();
+  // var sheet = SpreadsheetApp.getActiveSheet();
+  // var sheet = SpreadsheetApp.getActive().insertSheet('test');
+  // sheet.getRange( 1, 1, 1, 3 ).setValues( [[ 'course', 'assignment', 'submission' ]] );
   // log_objects( list_courses(), "list_courses()" );
-  // log_objects( list_assignments( '496710505024' ), "list_assignments" ); // Chem 126 M pm section
-  // log_objects( list_assignments_all( '496710505024' ) ); // Chem 126 M pm section
-  // to_delete = ["496710505073"];
-  // to_delete.forEach( id => {
-  //   Classroom.Courses.CourseWork.remove( '496710505024', id );
-  // })
-  // Logger.log( to_delete );
-  // var submissions = list_submissions( '453549119831', '453612187654' );  // Week 12 preparation in Chem 126
-  // log_objects( submissions, "list_submissions( '453549119831', '453612187654' )" );
-  // new_doc_url = merge_submissions( '453549119831', '453612187654' );
-  // log_arrays( [[ "merge doc url", new_doc_url ]], "merge_submissions( '453549119831', '453612187654'" );
-  
-  // Logger.log( JSON.stringify(submissions, null, 2) );
   // log_objects( list_students( '453549119831') );
   // log_objects( list_assignments_full( '453549119831' ) );
-  // var sheet = SpreadsheetApp.getActive().getSheetByName('merge');
-  // sheet.getRange( 1, 1, 1, 3 ).setValues( [[ 'course', 'assignment', 'submission' ]] );
+  // var submissions = list_submissions( '453549119831', '453612187654' );  // Week 12 preparation in Chem 126
+  // log_objects( submissions, "list_submissions( '453549119831', '453612187654' )" );  
+  // Logger.log( JSON.stringify(submissions, null, 2) );
   // courses = list_courses().map( course => `${course.id}: ${course.name}` ).slice(0,8);
 }
 
@@ -72,9 +63,46 @@ function onOpen(e) {
     .createMenu('Classroom')
     .addItem('Refresh course list', 'do_refresh_course_list' )
     .addItem('Refresh assignments list', 'do_refresh_assignments_list' )
-    .addItem('Merge submissions ...', 'do_merge_submissions' )
+    .addItem('Refresh submissions list', 'do_refresh_submissions_list' )
+    .addItem('Merge submissions', 'do_merge_submissions' )
+    // .addItem('Grade timely completion', 'do_grade_completion' )
+    // This function only works on assignments created by this spreadsheet script.
+    .addItem('Batch assign journals', 'do_setup_journals' )
+    .addItem('Add batch rows', 'do_add_batch_rows' )
     .addToUi();
   console.info("UI built")
+}
+
+function do_grade_completion() {
+  var active = SpreadsheetApp.getActive();
+  var sheet = active.getSheetByName( 'submissions' ) || active.insertSheet( 'submissions' );
+
+  current_data = read_sheet_to_objects( sheet );
+  include_array = current_data.map( row => { return [ row.id, row.include ] } );
+  include_map = Object.fromEntries( include_array );
+  
+  try {
+    var assignment_sheet = SpreadsheetApp.getActive().getSheetByName('assignments');
+    var assignments = read_sheet_to_objects( assignment_sheet );
+    var selected_assignments = assignments.filter( assignment => assignment.include );
+
+    var submissions = selected_assignments.map( a => list_submissions( a.courseId, a.id ) ).flat(1);
+    if ( submissions.length > 0 ) {
+      var timely_submissions = submissions.filter( 
+        submission => !(submission.late) && submission.state == 'TURNED_IN'
+      );
+      responses = timely_submissions.map( submission => {
+        return Classroom.Courses.CourseWork.StudentSubmissions.patch( { draftGrade: 1 }, 
+          submission.courseId, submission.courseWorkId, submission.id, { updateMask: 'draftGrade' }
+        );
+      });
+      Logger.log( responses );
+    } else {
+      SpreadsheetApp.getUi().alert( `Selected assignments do not have submissions.` );
+    }
+  } catch(e) {
+    SpreadsheetApp.getUi().alert( `${e}. Could not access submissions for selected assignments.` );
+  }
 }
 
 function do_refresh_course_list() {  // modifies or creates sheet named 'courses'
@@ -116,8 +144,8 @@ function do_refresh_assignments_list() {
     var course_sheet = SpreadsheetApp.getActive().getSheetByName('courses');
     var courses = read_sheet_to_objects( course_sheet );
     var selected_courses = courses.filter( course => course.include );
-    selected_courses_ids = selected_courses.map( course => course.id );
-    assignments = selected_courses_ids.map( id => list_assignments_all( id ) ).flat(1);
+    // selected_courses_ids = selected_courses.map( course => course.id );
+    assignments = selected_courses.map( course => list_assignments_all( course.id ) ).flat(1);
     if ( assignments.length > 0 ) {
       var assignments_list = assignments.map( 
         assignment => Object.assign( assignment, { include: include_map[assignment.id] || false } )
@@ -138,13 +166,43 @@ function do_refresh_assignments_list() {
   }
 }
 
+function do_refresh_submissions_list() {
+  var active = SpreadsheetApp.getActive();
+  var sheet = active.getSheetByName( 'submissions' ) || active.insertSheet( 'submissions' );
+
+  current_data = read_sheet_to_objects( sheet );
+  include_array = current_data.map( row => { return [ row.id, row.include ] } );
+  include_map = Object.fromEntries( include_array );
+  
+  try {
+    var assignment_sheet = SpreadsheetApp.getActive().getSheetByName('assignments');
+    var assignments = read_sheet_to_objects( assignment_sheet );
+    var selected_assignments = assignments.filter( assignment => assignment.include );
+
+    submissions = selected_assignments.map( a => list_submissions( a.courseId, a.id ) ).flat(1);
+    if ( submissions.length > 0 ) {
+      var submissions_list = submissions.map( 
+        submission => Object.assign( submission, { include: include_map[submission.id] || false } )
+      );  // add the property "include" for selection
+      sheet = output_objects( submissions_list, sheet );
+
+      //set checkbox validation on the last column "include"
+      last_column = sheet.getLastColumn();
+      number_rows = submissions.length;
+      var rule = SpreadsheetApp.newDataValidation().requireCheckbox().build();
+      sheet.getRange( 2, last_column, number_rows, 1 ).setDataValidation( rule );
+      active.setActiveSheet( sheet );
+    } else {
+      SpreadsheetApp.getUi().alert( `Selected assignments do not have submissions.` );
+    }
+  } catch(e) {
+    SpreadsheetApp.getUi().alert( `${e}. Could not access submissions for selected assignments.` );
+  }
+}
+
 function do_merge_submissions() {
   var active = SpreadsheetApp.getActive();
   var sheet = active.getSheetByName( 'merge' ) || active.insertSheet( 'merge' );
-
-  // current_data = read_sheet_to_objects( sheet );
-  // include_array = current_data.map( row => { return [ row.id, row.include ] } );
-  // include_map = Object.fromEntries( include_array );
 
   try {
     var assignment_sheet = SpreadsheetApp.getActive().getSheetByName('assignments');
@@ -159,6 +217,25 @@ function do_merge_submissions() {
   } catch(e) {
     SpreadsheetApp.getUi().alert( `Could not find submissions for selected assignment because of error: ${e}.`);
   }
+}
+
+function do_setup_journals() {
+  // batch creates assignments, specified in sheet "batch", and marked as "include"
+  // expects rows to specify courseId, topic name, title, schedule date/time
+  // optionally expects due date/time, points, fileId of material to attach, description
+  batch_sheet = SpreadsheetApp.getActive().getSheetByName('batch');
+  rows = read_sheet_to_objects( batch_sheet ).filter( row => row.include );
+  rows.forEach( row => { get_topic_id( row.courseId, row.topic ) });
+  responses = rows.map( row => create_assignment(row) );
+  batch_sheet.getRange( 'C2:C' ).setValue( false );
+}
+
+function do_add_batch_rows() {
+  var ui = SpreadsheetApp.getUi();
+  var num = ui.prompt( 'How many rows to add?').getResponseText();
+  num = isNaN(num) ? 1 : Math.ceil(num);
+  var batch_sheet = SpreadsheetApp.getActive().getSheetByName('batch');
+  batch_sheet.insertRowsBefore( 2, num );
 }
 
 
@@ -184,22 +261,6 @@ function get_topic_id( course_id, topic_name ) {  // creates the topic if it doe
   return topic_id;
 }
 
-function setup_journals( ) {
-  // batch creates assignments, specified in sheet "batch", and marked as "include"
-  // expects rows to specify courseId, topic name, title, schedule date/time
-  // optionally expects due date/time, points, fileId of material to attach, description
-  batch_sheet = SpreadsheetApp.getActive().getSheetByName('batch');
-  rows = read_sheet_to_objects( batch_sheet ).filter( row => row.include );
-  rows.forEach( row => {
-    existing_topics = Classroom.Courses.Topics.list( row.courseId ).topic.map( t => t.name );
-    if( !existing_topics.includes( row.topic ) ) {
-      Classroom.Courses.Topics.create( {name: row.topic }, row.courseId );
-    }
-  })
-  
-  responses = rows.map( row => create_assignment(row) );
-}
-
 function create_assignment( row ) {
   spec = spec_journal( row );
   let response = Classroom.Courses.CourseWork.create( spec, spec.courseId );
@@ -222,7 +283,7 @@ function spec_journal( row ) {
   if ( existing_topic.length > 0 ) {
     topic_id = existing_topic[0].topicId;
   } else {
-    throw `Topic ${topic_name} does not exist for courseId ${course_id}.`
+    throw `Topic "${topic_name}" does not exist for courseId ${course_id}.`
   }
 
   sch_datetime = format_sch_datetime( sch_year, sch_month, sch_day, sch_hour, sch_min );
@@ -421,12 +482,15 @@ function list_submissions( course_id, assignment_id ) {  // returns array of obj
     submission => submission.assignmentSubmission.attachments.map(
       attachment => { return {
           id: submission.id,
+          courseId: submission.courseId,
+          courseWorkId: submission.courseWorkId,
           userId: submission.userId,
           email: students[submission.userId].email,
           fileId: attachment.driveFile.id,
           title: attachment.driveFile.title,
           url: attachment.driveFile.alternateLink,
-          courseWorkId: submission.courseWorkId,
+          state: submission.state, late: submission.late,
+          draftGrade: submission.draftGrade, assignedGrade: submission.assignedGrade,
         }
       }
     ) 
