@@ -10,7 +10,7 @@
 // [x] Source control
 // [x] copy_content embeds url to the file in the title
 // [x] Refresh submissions list
-// [ ] Automatically refresh submissions list after merge
+// [x] Automatically refresh submissions list after merge
 // [ ] Test do_grade_completion to see if patching works
 
 var TZ = 4; // local time zone offset from UTC
@@ -210,10 +210,11 @@ function do_merge_submissions() {
     assignments = read_sheet_to_objects( assignment_sheet );
     selected_assignments = assignments.filter( assignment => assignment.include );
     target_urls = selected_assignments.map( assignment => ( { 
-      id: assignment.id, title: assignment.title,
-      url: merge_submissions( assignment.courseId, assignment.id )
+      id: assignment.id, title: assignment.title, url: assignment.alternateLink,
+      mergedoc_url: merge_submissions( assignment.courseId, assignment.id )
     }));
     sheet = output_objects( target_urls, sheet );
+    do_refresh_submissions_list();
     active.setActiveSheet( sheet );
   } catch(e) {
     SpreadsheetApp.getUi().alert( `Could not find submissions for selected assignment because of error: ${e}.`);
@@ -467,7 +468,10 @@ function list_assignments_all( course_id ) {
     let date =  datetime ? (datetime - refdate) / 86400000 : undefined;
     return Object.assign( a, { due: date } );
   });
-  desired_keys = [ 'id', 'title', 'state', 'courseId', 'topicId', 'description', 'materials', 'maxPoints', 'due' ];
+  desired_keys = [ 
+    'id', 'title', 'alternateLink', 'state', 'courseId', 'topicId', 'description', 
+    'materials', 'maxPoints', 'due' 
+  ];
   let curated = assignments.map( assignment => filter_keys( assignment, desired_keys ) );
   return curated;
 }
