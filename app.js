@@ -13,7 +13,7 @@
 // [ ] Automatically refresh submissions list after merge
 // [ ] Test do_grade_completion to see if patching works
 
-var TZ = 4; // local time zone offset from GMT
+var TZ = 4; // local time zone offset from UTC
 
 function myFunction() {
   // The comment below will trigger authorization dialog (yes, even as a comment)
@@ -65,8 +65,8 @@ function onOpen(e) {
     .addItem('Refresh assignments list', 'do_refresh_assignments_list' )
     .addItem('Refresh submissions list', 'do_refresh_submissions_list' )
     .addItem('Merge submissions', 'do_merge_submissions' )
-    // .addItem('Grade timely completion', 'do_grade_completion' )
-    // This function only works on assignments created by this spreadsheet script.
+    .addItem('Grade timely completion', 'do_grade_completion' )
+      // This function only works on assignments created by this spreadsheet script.
     .addItem('Batch assign journals', 'do_setup_journals' )
     .addItem('Add batch rows', 'do_add_batch_rows' )
     .addToUi();
@@ -92,7 +92,7 @@ function do_grade_completion() {
         submission => !(submission.late) && submission.state == 'TURNED_IN'
       );
       responses = timely_submissions.map( submission => {
-        return Classroom.Courses.CourseWork.StudentSubmissions.patch( { draftGrade: 1 }, 
+        return Classroom.Courses.CourseWork.StudentSubmissions.patch( { draftGrade: submission.maxPoints }, 
           submission.courseId, submission.courseWorkId, submission.id, { updateMask: 'draftGrade' }
         );
       });
@@ -130,6 +130,7 @@ function do_refresh_course_list() {  // modifies or creates sheet named 'courses
   number_rows = course_list.length;
   var rule = SpreadsheetApp.newDataValidation().requireCheckbox().build();
   sheet.getRange( 2, last_column, number_rows, 1 ).setDataValidation( rule );
+  active.setActiveSheet( sheet );
 }
 
 function do_refresh_assignments_list() {
@@ -456,18 +457,17 @@ function list_courses() { // returns array of { id, section:, courseState:, alte
   return courses.map( course => filter_keys( course, desired_keys ) );
 }
 
-function list_assignments( course_id ) { // returns array of { id:, title:, state:, topicId:, description:, materials: }
-  var response = Classroom.Courses.CourseWork.list( course_id );
-  var assignments = response.courseWork;
-  desired_keys = [ 'id', 'title', 'state', 'courseId', 'topicId', 'description', 'materials' ]
-  return assignments.map( assignment => filter_keys( assignment, desired_keys ) );
-}
-
-function list_assignments_all( course_id ) { // returns array of { id:, title:, state:, topicId:, description:, materials: }
+function list_assignments_all( course_id ) { 
+  // returns array of { id:, title:, state:, topicId:, description:, materials:, maxPoints: }
   var response = Classroom.Courses.CourseWork.list( course_id, { courseWorkStates: ['DRAFT', 'PUBLISHED'] } );
-  var assignments = response.courseWork;
-  desired_keys = [ 'id', 'title', 'state', 'courseId', 'topicId', 'description', 'materials' ]
-  return assignments.map( assignment => filter_keys( assignment, desired_keys ) );
+  var assignments = response.courseWork.map( a => {
+    let datetime = a.dueDate ? 
+      format_sch_datetime( a.dueDate.year, a.dueDate.month, a.dueDate.day, a.dueTime.hours, 0 ) : undefined;
+    return Object.assign( a, { due: datetime } );
+  });
+  desired_keys = [ 'id', 'title', 'state', 'courseId', 'topicId', 'description', 'materials', 'maxPoints' ];
+  let curated = assignments.map( assignment => filter_keys( assignment, desired_keys ) );
+  return curated;
 }
 
 function list_assignments_full( course_id ) {
@@ -477,6 +477,9 @@ function list_assignments_full( course_id ) {
 
 function list_submissions( course_id, assignment_id ) {  // returns array of objects, one per *attachment*
   var students = list_students( course_id );
+  var assignment = Classroom.Courses.CourseWork.get( course_id, assignment_id);
+  var title = assignment.title;
+  var max = assignment.maxPoints;
   var response = Classroom.Courses.CourseWork.StudentSubmissions.list( course_id, assignment_id);
   submissions = response.studentSubmissions.map(
     submission => submission.assignmentSubmission.attachments.map(
@@ -484,12 +487,14 @@ function list_submissions( course_id, assignment_id ) {  // returns array of obj
           id: submission.id,
           courseId: submission.courseId,
           courseWorkId: submission.courseWorkId,
+          assignment: title,
           userId: submission.userId,
           email: students[submission.userId].email,
           fileId: attachment.driveFile.id,
           title: attachment.driveFile.title,
           url: attachment.driveFile.alternateLink,
           state: submission.state, late: submission.late,
+          maxPoints: max,
           draftGrade: submission.draftGrade, assignedGrade: submission.assignedGrade,
         }
       }
