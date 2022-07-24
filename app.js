@@ -461,11 +461,13 @@ function list_assignments_all( course_id ) {
   // returns array of { id:, title:, state:, topicId:, description:, materials:, maxPoints: }
   var response = Classroom.Courses.CourseWork.list( course_id, { courseWorkStates: ['DRAFT', 'PUBLISHED'] } );
   var assignments = response.courseWork.map( a => {
+    let refdate = new Date(1899,11,30,-1 + TZ);  // Google doesn't use Unix epoch time for timestamps
     let datetime = a.dueDate ? 
-      format_sch_datetime( a.dueDate.year, a.dueDate.month, a.dueDate.day, a.dueTime.hours, 0 ) : undefined;
-    return Object.assign( a, { due: datetime } );
+      new Date( a.dueDate.year, a.dueDate.month - 1, a.dueDate.day, a.dueTime.hours, 0 ) : undefined;
+    let date =  datetime ? (datetime - refdate) / 86400000 : undefined;
+    return Object.assign( a, { due: date } );
   });
-  desired_keys = [ 'id', 'title', 'state', 'courseId', 'topicId', 'description', 'materials', 'maxPoints' ];
+  desired_keys = [ 'id', 'title', 'state', 'courseId', 'topicId', 'description', 'materials', 'maxPoints', 'due' ];
   let curated = assignments.map( assignment => filter_keys( assignment, desired_keys ) );
   return curated;
 }
