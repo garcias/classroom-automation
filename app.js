@@ -253,7 +253,8 @@ function create_material_drive( course_id, title, topic_name, description, mater
 }
 
 function get_topic_id( course_id, topic_name ) {  // creates the topic if it doesn't exist
-  existing_topic = Classroom.Courses.Topics.list( course_id ).topic.filter( t => t.name == topic_name );
+  let topic_list = Classroom.Courses.Topics.list( course_id ).topic;
+  let existing_topic = topic_list ? topic_list.filter( t => t.name == topic_name ) : [];
   if ( existing_topic.length > 0 ) {
     topic_id = existing_topic[0].topicId;
   } else {
@@ -262,6 +263,17 @@ function get_topic_id( course_id, topic_name ) {  // creates the topic if it doe
   }
   return topic_id;
 }
+
+// function get_topic_id( course_id, topic_name ) {  // creates the topic if it doesn't exist
+//   existing_topic = Classroom.Courses.Topics.list( course_id ).topic.filter( t => t.name == topic_name );
+//   if ( existing_topic.length > 0 ) {
+//     topic_id = existing_topic[0].topicId;
+//   } else {
+//     response = Classroom.Courses.Topics.create( {name: topic_name }, course_id );
+//     topic_id = response.topicId;
+//   }
+//   return topic_id;
+// }
 
 function create_assignment( row ) {
   spec = spec_journal( row );
@@ -340,9 +352,13 @@ function merge_submissions( course_id, assignment_id, limit=undefined ) {  // re
 
   title = Classroom.Courses.CourseWork.get( course_id, assignment_id).title;
   var merge_doc = DocumentApp.create( `merge submissions for ${title}` );
-  var target = merge_doc.getBody();
-
+  var merge_doc_id = merge_doc.getId();
+  merge_doc.saveAndClose();
+  
   for ( let submission of submissions ) {
+    var merge_doc = DocumentApp.openById( merge_doc_id );
+    var target = merge_doc.getBody();
+
     var file = DriveApp.getFileById( submission.fileId );
     if( file.getMimeType() == MimeType.GOOGLE_DOCS ) {
       var doc = DocumentApp.openById( submission.fileId );
@@ -368,6 +384,7 @@ function merge_submissions( course_id, assignment_id, limit=undefined ) {  // re
       warning = '\n>>>>> Source file is not a Google Doc; could not copy content. <<<<<\n'
       target.appendParagraph( warning );
     }
+    merge_doc.saveAndClose();
   }
   return merge_doc.getUrl();
 }
