@@ -13,7 +13,9 @@
 // [x] Automatically refresh submissions list after merge
 // [ ] Test do_grade_completion to see if patching works
 
-var TZ = 4; // local time zone offset from UTC
+let current_date = new Date();
+var TZ = current_date.getUTCHours() - current_date.getHours(); // local time zone offset from UTC
+  // should be 5 (EST) or 4 (EDT)
 
 function myFunction() {
   // The comment below will trigger authorization dialog (yes, even as a comment)
