@@ -323,26 +323,25 @@ function format_sch_datetime( sch_year, sch_month, sch_day, sch_hour, sch_min ) 
   return sch_datetime.toISOString();  
 }
 
-function format_due_date( due_year, due_month, due_day, due_hour, due_min ) {  // returns { year: , month: , day: }
-  due_datetime = new Date( due_year, due_month - 1, due_day, due_hour + TZ, due_min );
+function format_due_date( due_year, due_month, due_day, due_hour, due_min = 0 ) {  // returns { year: , month: , day: }
+  var due_datetime = new Date( due_year, due_month - 1, due_day, due_hour, due_min );
   if ( due_year && due_month && due_day ) {
-    due_date = {year: due_datetime.getFullYear(), month: due_datetime.getMonth() + 1, day: due_datetime.getDate()};
+    due_date = {year: due_datetime.getUTCFullYear(), month: due_datetime.getUTCMonth() + 1, day: due_datetime.getUTCDate()};
   } else {  // in case due date is blank
     due_date = undefined;
   }
   return due_date;
 }
 
-function format_due_time( due_year, due_month, due_day, due_hour, due_min ) {  // returns { hours: , minutes: }
-  due_datetime = new Date( due_year, due_month - 1, due_day, due_hour + TZ, due_min );
+function format_due_time( due_year, due_month, due_day, due_hour, due_min = 0 ) {  // returns { hours: , minutes: } in UTC
+  var due_datetime = new Date( due_year, due_month - 1, due_day, due_hour, due_min );
   if ( due_year && due_month && due_day ) {
-    due_time = { hours: due_datetime.getHours(), minutes: due_datetime.getMinutes() };
+    due_time = { hours: due_datetime.getUTCHours(), minutes: due_datetime.getUTCMinutes() };
   } else {  // in case due date is blank
     due_time = undefined;   
   }
   return due_time;
 }
-
 
 // DOCUMENT MANIPULATION FUNCTIONS
 
