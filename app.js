@@ -13,10 +13,6 @@
 // [x] Automatically refresh submissions list after merge
 // [ ] Test do_grade_completion to see if patching works
 
-let current_date = new Date();
-var TZ = current_date.getUTCHours() - current_date.getHours(); // local time zone offset from UTC
-  // should be 5 (EST) or 4 (EDT)
-
 function myFunction() {
   // The comment below will trigger authorization dialog (yes, even as a comment)
   // ref: https://stackoverflow.com/questions/42796630/
@@ -480,10 +476,9 @@ function list_assignments_all( course_id ) {
   // returns array of { id:, title:, state:, topicId:, description:, materials:, maxPoints: }
   var response = Classroom.Courses.CourseWork.list( course_id, { courseWorkStates: ['DRAFT', 'PUBLISHED'] } );
   var assignments = response.courseWork.map( a => {
-    let refdate = new Date(1899,11,30,-1 + TZ);  // Google doesn't use Unix epoch time for timestamps
-    let datetime = a.dueDate ? 
-      new Date( a.dueDate.year, a.dueDate.month - 1, a.dueDate.day, a.dueTime.hours, 0 ) : undefined;
-    let date =  datetime ? (datetime - refdate) / 86400000 : undefined;
+    let d = a.dueDate ?
+      new Date( Date.UTC(a.dueDate.year, a.dueDate.month - 1, a.dueDate.day, a.dueTime.hours, 0) ) : undefined;
+    let date = d ? `${d.toString().slice(0,3)} ${d.toISOString().slice(0,10)} ${d.toTimeString().slice(0,5)}` : undefined;
     return Object.assign( a, { due: date } );
   });
   desired_keys = [ 
