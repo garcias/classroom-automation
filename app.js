@@ -5,15 +5,12 @@
 // [ ] Generate a report about student completion/grades on assignments
 // [x] Named sheets are refreshed not deleted + created, with option to delete
 // [x] Allow to set name of sheet in sheet-factory functions
-// [ ] Generalize some functions to library
-// [ ] Record some tricks for object manipulation into Quiver
+// [x] Generalize some functions to library
+// [x] Record some tricks for object manipulation into Quiver
 // [x] Source control
 // [x] copy_content embeds url to the file in the title
 // [x] Refresh submissions list
 // [x] Automatically refresh submissions list after merge
-// [ ] Test do_grade_completion to see if patching works
-
-var TZ = 4; // local time zone offset from UTC
 
 function myFunction() {
   // The comment below will trigger authorization dialog (yes, even as a comment)
@@ -23,7 +20,6 @@ function myFunction() {
 
   course_id = '535370341314';  // KEEP test course
   batch_sheet = SpreadsheetApp.getActive().getSheetByName('batch');
-  // SpreadsheetApp.getActive().setActiveSheet( batch_sheet );
 }
 
 function examples() {
@@ -65,45 +61,12 @@ function onOpen(e) {
     .addItem('Refresh assignments list', 'do_refresh_assignments_list' )
     .addItem('Refresh submissions list', 'do_refresh_submissions_list' )
     .addItem('Merge submissions', 'do_merge_submissions' )
-    .addItem('Grade timely completion', 'do_grade_completion' )
       // This function only works on assignments created by this spreadsheet script.
     .addItem('Batch assign journals', 'do_setup_journals' )
-    .addItem('Add batch rows', 'do_add_batch_rows' )
     .addToUi();
   console.info("UI built")
 }
 
-function do_grade_completion() {
-  var active = SpreadsheetApp.getActive();
-  var sheet = active.getSheetByName( 'submissions' ) || active.insertSheet( 'submissions' );
-
-  current_data = read_sheet_to_objects( sheet );
-  include_array = current_data.map( row => { return [ row.id, row.include ] } );
-  include_map = Object.fromEntries( include_array );
-  
-  try {
-    var assignment_sheet = SpreadsheetApp.getActive().getSheetByName('assignments');
-    var assignments = read_sheet_to_objects( assignment_sheet );
-    var selected_assignments = assignments.filter( assignment => assignment.include );
-
-    var submissions = selected_assignments.map( a => list_submissions( a.courseId, a.id ) ).flat(1);
-    if ( submissions.length > 0 ) {
-      var timely_submissions = submissions.filter( 
-        submission => !(submission.late) && submission.state == 'TURNED_IN'
-      );
-      responses = timely_submissions.map( submission => {
-        return Classroom.Courses.CourseWork.StudentSubmissions.patch( { draftGrade: submission.maxPoints }, 
-          submission.courseId, submission.courseWorkId, submission.id, { updateMask: 'draftGrade' }
-        );
-      });
-      Logger.log( responses );
-    } else {
-      SpreadsheetApp.getUi().alert( `Selected assignments do not have submissions.` );
-    }
-  } catch(e) {
-    SpreadsheetApp.getUi().alert( `${e}. Could not access submissions for selected assignments.` );
-  }
-}
 
 function do_refresh_course_list() {  // modifies or creates sheet named 'courses'
   var active = SpreadsheetApp.getActive();
@@ -232,14 +195,6 @@ function do_setup_journals() {
   batch_sheet.getRange( 'C2:C' ).setValue( false );
 }
 
-function do_add_batch_rows() {
-  var ui = SpreadsheetApp.getUi();
-  var num = ui.prompt( 'How many rows to add?').getResponseText();
-  num = isNaN(num) ? 1 : Math.ceil(num);
-  var batch_sheet = SpreadsheetApp.getActive().getSheetByName('batch');
-  batch_sheet.insertRowsBefore( 2, num );
-}
-
 
 // ASSIGNMENT CREATION AND SPECIFICATION FUNCTIONS
 
@@ -253,7 +208,8 @@ function create_material_drive( course_id, title, topic_name, description, mater
 }
 
 function get_topic_id( course_id, topic_name ) {  // creates the topic if it doesn't exist
-  existing_topic = Classroom.Courses.Topics.list( course_id ).topic.filter( t => t.name == topic_name );
+  let topic_list = Classroom.Courses.Topics.list( course_id ).topic;
+  let existing_topic = topic_list ? topic_list.filter( t => t.name == topic_name ) : [];
   if ( existing_topic.length > 0 ) {
     topic_id = existing_topic[0].topicId;
   } else {
@@ -262,6 +218,17 @@ function get_topic_id( course_id, topic_name ) {  // creates the topic if it doe
   }
   return topic_id;
 }
+
+// function get_topic_id( course_id, topic_name ) {  // creates the topic if it doesn't exist
+//   existing_topic = Classroom.Courses.Topics.list( course_id ).topic.filter( t => t.name == topic_name );
+//   if ( existing_topic.length > 0 ) {
+//     topic_id = existing_topic[0].topicId;
+//   } else {
+//     response = Classroom.Courses.Topics.create( {name: topic_name }, course_id );
+//     topic_id = response.topicId;
+//   }
+//   return topic_id;
+// }
 
 function create_assignment( row ) {
   spec = spec_journal( row );
@@ -272,14 +239,12 @@ function create_assignment( row ) {
 
 function spec_journal( row ) {
 // convert from sheet-specified format to assignment-spec object that conforms to API spec
+// new version requires columns for date and time, must be formatted as Sheets datetime <==> JS Date
   
   course_id = row.courseId.toString();
   topic_name = row.topic;
   points = row.points;
   materials_id = row.material.toString();
-  // in local time
-  sch_year = row.sch_year; sch_month = row.sch_month; sch_day = row.sch_day, sch_hour = row.sch_hour; sch_min = 0;
-  due_year = row.due_year; due_month = row.due_month; due_day = row.due_day, due_hour = row.due_hour; due_min = 0;
   
   existing_topic = Classroom.Courses.Topics.list( course_id ).topic.filter( t => t.name == topic_name );
   if ( existing_topic.length > 0 ) {
@@ -287,10 +252,20 @@ function spec_journal( row ) {
   } else {
     throw `Topic "${topic_name}" does not exist for courseId ${course_id}.`
   }
+  
+  var due_datetime = row.due_date;
+  due_datetime.setHours(   row.due_time.getHours() );
+  due_datetime.setMinutes( row.due_time.getMinutes() );
+  due_datetime.setSeconds( row.due_time.getSeconds() );
 
-  sch_datetime = format_sch_datetime( sch_year, sch_month, sch_day, sch_hour, sch_min );
-  due_date = format_due_date( due_year, due_month, due_day, due_hour, due_min );
-  due_time = format_due_time( due_year, due_month, due_day, due_hour, due_min );
+  let due_date = format_due_date( due_datetime );
+  let due_time = format_due_time( due_datetime );
+
+  var sch_datetime = row.sch_date;
+  sch_datetime.setHours(   row.sch_time.getHours() );
+  sch_datetime.setMinutes( row.sch_time.getMinutes() );
+  sch_datetime.setSeconds( row.sch_time.getSeconds() );
+  sch_datetime = format_sch_datetime( sch_datetime );
 
   points = points ? points : undefined;  // in case points is blank
   materials_spec = materials_id ? 
@@ -304,31 +279,27 @@ function spec_journal( row ) {
   };
 }
 
-function format_sch_datetime( sch_year, sch_month, sch_day, sch_hour, sch_min ) {  // formatted as ISO string
-  sch_datetime = new Date( sch_year, sch_month - 1, sch_day, sch_hour, sch_min );
+function format_sch_datetime( sch_datetime ) {  // formatted as ISO string
   return sch_datetime.toISOString();  
 }
 
-function format_due_date( due_year, due_month, due_day, due_hour, due_min ) {  // returns { year: , month: , day: }
-  due_datetime = new Date( due_year, due_month - 1, due_day, due_hour + TZ, due_min );
-  if ( due_year && due_month && due_day ) {
-    due_date = {year: due_datetime.getFullYear(), month: due_datetime.getMonth() + 1, day: due_datetime.getDate()};
+function format_due_date( due_datetime ) {  // returns { year: , month: , day: }
+  if ( due_datetime ) {
+    due_date = {year: due_datetime.getUTCFullYear(), month: due_datetime.getUTCMonth() + 1, day: due_datetime.getUTCDate()};
   } else {  // in case due date is blank
     due_date = undefined;
   }
   return due_date;
 }
 
-function format_due_time( due_year, due_month, due_day, due_hour, due_min ) {  // returns { hours: , minutes: }
-  due_datetime = new Date( due_year, due_month - 1, due_day, due_hour + TZ, due_min );
-  if ( due_year && due_month && due_day ) {
-    due_time = { hours: due_datetime.getHours(), minutes: due_datetime.getMinutes() };
+function format_due_time( due_datetime ) {  // returns { hours: , minutes: } in UTC
+  if ( due_datetime ) {
+    due_time = { hours: due_datetime.getUTCHours(), minutes: due_datetime.getUTCMinutes() };
   } else {  // in case due date is blank
     due_time = undefined;   
   }
   return due_time;
 }
-
 
 // DOCUMENT MANIPULATION FUNCTIONS
 
@@ -340,9 +311,13 @@ function merge_submissions( course_id, assignment_id, limit=undefined ) {  // re
 
   title = Classroom.Courses.CourseWork.get( course_id, assignment_id).title;
   var merge_doc = DocumentApp.create( `merge submissions for ${title}` );
-  var target = merge_doc.getBody();
-
+  var merge_doc_id = merge_doc.getId();
+  merge_doc.saveAndClose();
+  
   for ( let submission of submissions ) {
+    var merge_doc = DocumentApp.openById( merge_doc_id );
+    var target = merge_doc.getBody();
+
     var file = DriveApp.getFileById( submission.fileId );
     if( file.getMimeType() == MimeType.GOOGLE_DOCS ) {
       var doc = DocumentApp.openById( submission.fileId );
@@ -368,6 +343,7 @@ function merge_submissions( course_id, assignment_id, limit=undefined ) {  // re
       warning = '\n>>>>> Source file is not a Google Doc; could not copy content. <<<<<\n'
       target.appendParagraph( warning );
     }
+    merge_doc.saveAndClose();
   }
   return merge_doc.getUrl();
 }
@@ -462,10 +438,9 @@ function list_assignments_all( course_id ) {
   // returns array of { id:, title:, state:, topicId:, description:, materials:, maxPoints: }
   var response = Classroom.Courses.CourseWork.list( course_id, { courseWorkStates: ['DRAFT', 'PUBLISHED'] } );
   var assignments = response.courseWork.map( a => {
-    let refdate = new Date(1899,11,30,-1 + TZ);  // Google doesn't use Unix epoch time for timestamps
-    let datetime = a.dueDate ? 
-      new Date( a.dueDate.year, a.dueDate.month - 1, a.dueDate.day, a.dueTime.hours, 0 ) : undefined;
-    let date =  datetime ? (datetime - refdate) / 86400000 : undefined;
+    let d = a.dueDate ?
+      new Date( Date.UTC(a.dueDate.year, a.dueDate.month - 1, a.dueDate.day, a.dueTime.hours, 0) ) : undefined;
+    let date = d ? `${d.toString().slice(0,3)} ${d.toISOString().slice(0,10)} ${d.toTimeString().slice(0,5)}` : undefined;
     return Object.assign( a, { due: date } );
   });
   desired_keys = [ 
