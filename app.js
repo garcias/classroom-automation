@@ -5,13 +5,12 @@
 // [ ] Generate a report about student completion/grades on assignments
 // [x] Named sheets are refreshed not deleted + created, with option to delete
 // [x] Allow to set name of sheet in sheet-factory functions
-// [ ] Generalize some functions to library
-// [ ] Record some tricks for object manipulation into Quiver
+// [x] Generalize some functions to library
+// [x] Record some tricks for object manipulation into Quiver
 // [x] Source control
 // [x] copy_content embeds url to the file in the title
 // [x] Refresh submissions list
 // [x] Automatically refresh submissions list after merge
-// [ ] Test do_grade_completion to see if patching works
 
 function myFunction() {
   // The comment below will trigger authorization dialog (yes, even as a comment)
