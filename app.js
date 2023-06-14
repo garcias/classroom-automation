@@ -62,45 +62,12 @@ function onOpen(e) {
     .addItem('Refresh assignments list', 'do_refresh_assignments_list' )
     .addItem('Refresh submissions list', 'do_refresh_submissions_list' )
     .addItem('Merge submissions', 'do_merge_submissions' )
-    .addItem('Grade timely completion', 'do_grade_completion' )
       // This function only works on assignments created by this spreadsheet script.
     .addItem('Batch assign journals', 'do_setup_journals' )
-    .addItem('Add batch rows', 'do_add_batch_rows' )
     .addToUi();
   console.info("UI built")
 }
 
-function do_grade_completion() {
-  var active = SpreadsheetApp.getActive();
-  var sheet = active.getSheetByName( 'submissions' ) || active.insertSheet( 'submissions' );
-
-  current_data = read_sheet_to_objects( sheet );
-  include_array = current_data.map( row => { return [ row.id, row.include ] } );
-  include_map = Object.fromEntries( include_array );
-  
-  try {
-    var assignment_sheet = SpreadsheetApp.getActive().getSheetByName('assignments');
-    var assignments = read_sheet_to_objects( assignment_sheet );
-    var selected_assignments = assignments.filter( assignment => assignment.include );
-
-    var submissions = selected_assignments.map( a => list_submissions( a.courseId, a.id ) ).flat(1);
-    if ( submissions.length > 0 ) {
-      var timely_submissions = submissions.filter( 
-        submission => !(submission.late) && submission.state == 'TURNED_IN'
-      );
-      responses = timely_submissions.map( submission => {
-        return Classroom.Courses.CourseWork.StudentSubmissions.patch( { draftGrade: submission.maxPoints }, 
-          submission.courseId, submission.courseWorkId, submission.id, { updateMask: 'draftGrade' }
-        );
-      });
-      Logger.log( responses );
-    } else {
-      SpreadsheetApp.getUi().alert( `Selected assignments do not have submissions.` );
-    }
-  } catch(e) {
-    SpreadsheetApp.getUi().alert( `${e}. Could not access submissions for selected assignments.` );
-  }
-}
 
 function do_refresh_course_list() {  // modifies or creates sheet named 'courses'
   var active = SpreadsheetApp.getActive();
@@ -227,14 +194,6 @@ function do_setup_journals() {
   rows.forEach( row => { get_topic_id( row.courseId, row.topic ) });
   responses = rows.map( row => create_assignment(row) );
   batch_sheet.getRange( 'C2:C' ).setValue( false );
-}
-
-function do_add_batch_rows() {
-  var ui = SpreadsheetApp.getUi();
-  var num = ui.prompt( 'How many rows to add?').getResponseText();
-  num = isNaN(num) ? 1 : Math.ceil(num);
-  var batch_sheet = SpreadsheetApp.getActive().getSheetByName('batch');
-  batch_sheet.insertRowsBefore( 2, num );
 }
 
 
