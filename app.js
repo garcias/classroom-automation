@@ -21,7 +21,6 @@ function myFunction() {
 
   course_id = '535370341314';  // KEEP test course
   batch_sheet = SpreadsheetApp.getActive().getSheetByName('batch');
-  // SpreadsheetApp.getActive().setActiveSheet( batch_sheet );
 }
 
 function examples() {
@@ -282,14 +281,12 @@ function create_assignment( row ) {
 
 function spec_journal( row ) {
 // convert from sheet-specified format to assignment-spec object that conforms to API spec
+// new version requires columns for date and time, must be formatted as Sheets datetime <==> JS Date
   
   course_id = row.courseId.toString();
   topic_name = row.topic;
   points = row.points;
   materials_id = row.material.toString();
-  // in local time
-  sch_year = row.sch_year; sch_month = row.sch_month; sch_day = row.sch_day, sch_hour = row.sch_hour; sch_min = 0;
-  due_year = row.due_year; due_month = row.due_month; due_day = row.due_day, due_hour = row.due_hour; due_min = 0;
   
   existing_topic = Classroom.Courses.Topics.list( course_id ).topic.filter( t => t.name == topic_name );
   if ( existing_topic.length > 0 ) {
@@ -297,10 +294,20 @@ function spec_journal( row ) {
   } else {
     throw `Topic "${topic_name}" does not exist for courseId ${course_id}.`
   }
+  
+  var due_datetime = row.due_date;
+  due_datetime.setHours(   row.due_time.getHours() );
+  due_datetime.setMinutes( row.due_time.getMinutes() );
+  due_datetime.setSeconds( row.due_time.getSeconds() );
 
-  sch_datetime = format_sch_datetime( sch_year, sch_month, sch_day, sch_hour, sch_min );
-  due_date = format_due_date( due_year, due_month, due_day, due_hour, due_min );
-  due_time = format_due_time( due_year, due_month, due_day, due_hour, due_min );
+  let due_date = format_due_date( due_datetime );
+  let due_time = format_due_time( due_datetime );
+
+  var sch_datetime = row.sch_date;
+  sch_datetime.setHours(   row.sch_time.getHours() );
+  sch_datetime.setMinutes( row.sch_time.getMinutes() );
+  sch_datetime.setSeconds( row.sch_time.getSeconds() );
+  sch_datetime = format_sch_datetime( sch_datetime );
 
   points = points ? points : undefined;  // in case points is blank
   materials_spec = materials_id ? 
@@ -314,14 +321,12 @@ function spec_journal( row ) {
   };
 }
 
-function format_sch_datetime( sch_year, sch_month, sch_day, sch_hour, sch_min ) {  // formatted as ISO string
-  sch_datetime = new Date( sch_year, sch_month - 1, sch_day, sch_hour, sch_min );
+function format_sch_datetime( sch_datetime ) {  // formatted as ISO string
   return sch_datetime.toISOString();  
 }
 
-function format_due_date( due_year, due_month, due_day, due_hour, due_min = 0 ) {  // returns { year: , month: , day: }
-  var due_datetime = new Date( due_year, due_month - 1, due_day, due_hour, due_min );
-  if ( due_year && due_month && due_day ) {
+function format_due_date( due_datetime ) {  // returns { year: , month: , day: }
+  if ( due_datetime ) {
     due_date = {year: due_datetime.getUTCFullYear(), month: due_datetime.getUTCMonth() + 1, day: due_datetime.getUTCDate()};
   } else {  // in case due date is blank
     due_date = undefined;
@@ -329,9 +334,8 @@ function format_due_date( due_year, due_month, due_day, due_hour, due_min = 0 ) 
   return due_date;
 }
 
-function format_due_time( due_year, due_month, due_day, due_hour, due_min = 0 ) {  // returns { hours: , minutes: } in UTC
-  var due_datetime = new Date( due_year, due_month - 1, due_day, due_hour, due_min );
-  if ( due_year && due_month && due_day ) {
+function format_due_time( due_datetime ) {  // returns { hours: , minutes: } in UTC
+  if ( due_datetime ) {
     due_time = { hours: due_datetime.getUTCHours(), minutes: due_datetime.getUTCMinutes() };
   } else {  // in case due date is blank
     due_time = undefined;   
