@@ -85,7 +85,7 @@ function do_refresh_course_list() {  // modifies or creates sheet named 'courses
   } catch(e) {
     SpreadsheetApp.getUi().alert( `${e}. Could not access course list.` );
   }
-
+  // Logger.log( course_list );
   var sheet = output_objects( course_list, sheet );
 
   // set checkbox validation on the last column "include"
@@ -171,7 +171,8 @@ function do_merge_submissions() {
   try {
     var assignment_sheet = SpreadsheetApp.getActive().getSheetByName('assignments');
     assignments = read_sheet_to_objects( assignment_sheet );
-    selected_assignments = assignments.filter( assignment => assignment.include );
+    let selected_assignments = assignments.filter( assignment => assignment.include );
+    Logger.log(selected_assignments);
     target_urls = selected_assignments.map( assignment => ( { 
       id: assignment.id, title: assignment.title, url: assignment.alternateLink,
       mergedoc_url: merge_submissions( assignment.courseId, assignment.id )
@@ -252,12 +253,16 @@ function spec_journal( row ) {
   } else {
     throw `Topic "${topic_name}" does not exist for courseId ${course_id}.`
   }
-  
-  var due_datetime = row.due_date;
-  due_datetime.setHours(   row.due_time.getHours() );
-  due_datetime.setMinutes( row.due_time.getMinutes() );
-  due_datetime.setSeconds( row.due_time.getSeconds() );
 
+  var due_datetime = row.due_date;
+  if (row.due_date && row.due_time) {
+    due_datetime.setHours(   row.due_time.getHours() );
+    due_datetime.setMinutes( row.due_time.getMinutes() );
+    due_datetime.setSeconds( row.due_time.getSeconds() );
+  } else {
+    due_datetime = undefined;
+  }
+  
   let due_date = format_due_date( due_datetime );
   let due_time = format_due_time( due_datetime );
 
@@ -437,7 +442,10 @@ function list_courses() { // returns array of { id, section:, courseState:, alte
 function list_assignments_all( course_id ) { 
   // returns array of { id:, title:, state:, topicId:, description:, materials:, maxPoints: }
   var response = Classroom.Courses.CourseWork.list( course_id, { courseWorkStates: ['DRAFT', 'PUBLISHED'] } );
+  Logger.log( response.courseWork );
   var assignments = response.courseWork.map( a => {
+    // let test = a.dueDate;
+    // Logger.log( test );
     let d = a.dueDate ?
       new Date( Date.UTC(a.dueDate.year, a.dueDate.month - 1, a.dueDate.day, a.dueTime.hours, 0) ) : undefined;
     let date = d ? `${d.toString().slice(0,3)} ${d.toISOString().slice(0,10)} ${d.toTimeString().slice(0,5)}` : undefined;
