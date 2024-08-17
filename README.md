@@ -12,9 +12,7 @@ Manage common Google Classroom actions with Google Apps Script
 
 ### From existing spreadsheet
 
-- [ ] To do: create redacted copy of spreadsheet, make visible to internet, post link here.
-
-Open the spreadsheet [Classroom automation 2.0](#) and make a copy of it, save it (along with the attached Apps Script project) to your MyDrive (*not* to a shared folder). (Use the same Google account that you use for Google Classroom.)
+Open the spreadsheet [Classroom automation 2.0](https://docs.google.com/spreadsheets/d/1BdS3FRFQoaiZOdvSqowEK6FDRJNdk53JlJeWEFca2LU/template/preview) and make a copy of it (along with the attached Apps Script project) in your MyDrive folder (*not* to a shared folder). (Use the same Google account that you use for Google Classroom.)
 
 ### From scratch
 
@@ -36,7 +34,7 @@ Select *Extensions > Apps Script*. It will open a new project. Copy and paste ap
 - **Refresh submissions list** for selected assignment
 - **Merge submissions** of Google Docs for selected assignment into a single Doc
 - **Batch assign** multiple assignments for entire course
-- ... or write your own using existing classes and functions
+- ... or write your own using existing classes and functions (documentation coming soon)
 
 ## Change log
 
