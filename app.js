@@ -29,7 +29,7 @@ function onOpen(e) {
     .addItem('Refresh submissions list', 'do_refresh_submissions_list' )
     .addItem('Merge submissions', 'do_merge_submissions' )
       // This function only works on assignments created by this spreadsheet script.
-    .addItem('Batch assign journals', 'do_batch_assign' )
+    .addItem('Batch assign', 'do_batch_assign' )
     .addToUi();
   console.info("UI built")
 }
@@ -235,15 +235,15 @@ class Journal {
       undefined;  // in case material was blank
 
     return new this({ 
-      topicId: topic.topicId, 
+      topicId: topic ? topic.topicId : null,
       title: spec.title,
-      maxPoints: spec.points ? spec.points : undefined, 
+      maxPoints: spec.points ? spec.points : null, 
       state: 'DRAFT', 
-      description: spec.description,
-      materials: materials_spec,
-      dueDate: dueJS.asDate(), 
-      dueTime: dueJS.asTime(), 
-      scheduledTime: schJS.toISOString(),
+      description: spec.description ? spec.description : null,
+      materials: materials_spec ? materials_spec : null,
+      dueDate: dueJS ? dueJS.asDate() : null, 
+      dueTime: dueJS ? dueJS.asTime() : null, 
+      scheduledTime: schJS ? schJS.toISOString() : null,
     })
   }
 }
