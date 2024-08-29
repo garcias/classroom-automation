@@ -38,6 +38,10 @@ Select *Extensions > Apps Script*. It will open a new project. Copy and paste ap
 
 ## Change log
 
+### 2.1 (2024-08-29)
+
+Allow optional fields in batch assign. Allow creation of assignments that are missing fields such as description, due date, schedule date, material, or topic. Title still required.
+
 ### 2.0 (2024-08-17)
 
 Refactor codebase. No new features. Reimplement current feature set with class-based logic. This will make debugging and testing more reliable and systematic, especially when Google introduces subtle changes in API behavior. The new classes (especially DateTime, SheetTable, Course, MergeDoc) will enable more rapid build out of new features (e.g. collecting comments and generating grade reports), and are potentially reusable to automate other Google products such as mail, calendar, and drive.
