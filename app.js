@@ -6,6 +6,8 @@
 // [ ] Add script to detect number of missing or late submissions per student in a course
 // [ ] Use JSDoc to generate documentation page for GitHub repo
 // [ ] Map the Resource-type classes to the Classroom API more consistently
+// [ ] Cache arrays as needed to minimize external API calls
+// [ ] do_batch_assign() should create link to each newly created assignment
 
 Settings = {
   pageSize: 30,
@@ -209,7 +211,7 @@ class Journal {
   constructor( spec ) { Object.assign( this, spec ) }
   static fromObject( spec ) {
     const course = Course.getById( spec.courseId );
-    const topic = course.getTopicByName( spec.topic );
+    const topic = spec.topic ? course.createTopic( spec.topic ) : null;
 
     let dueJS = new DateTime( spec.due_date );
     if (spec.due_date && spec.due_time) {
