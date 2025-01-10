@@ -38,7 +38,7 @@ Select *Extensions > Apps Script*. It will open a new project. Copy and paste ap
 
 ## Change log
 
-### 2.2 (2024-01-09)
+### 2.2 (2025-01-09)
 
 Fix DateTime bug. Under specific conditions, an assignment with no due date would cause "Refresh assignments list" to crash. Rewrote `Assignment.due()` to detect a null due date before date conversion and handle it appropriately.
 
