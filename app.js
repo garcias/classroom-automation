@@ -852,7 +852,11 @@ class Assignment extends Resource {
   /** @return {DateTime} due date and time as a DateTime object */
   get due() {
     try {
-      return DateTime.fromDateAndTime( this.dueDate, this.dueTime ); 
+      if ( this.hasOwnProperty('dueDate') && this.hasOwnProperty('dueTime') ) {
+        return DateTime.fromDateAndTime( this.dueDate, this.dueTime ); 
+      } else {
+        return null;
+      }
     } catch( err ) {
       return null;
     }
