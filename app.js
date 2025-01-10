@@ -977,9 +977,6 @@ class Submission extends Resource {
  */
 class SheetTable extends Array {
 
-  /** @return {String[]} Array of strings naming column headers in order */
-  get headers() { return Object.keys( this[0] ) }
-
   /**
    * Create new SheetTable with specified subset of properties
    * if any specified headers are not in the table, their values will be null
@@ -987,35 +984,38 @@ class SheetTable extends Array {
    * @return {SheetTable}
    */
   selectColumns( headersArray ) {
-  // returns Table with only specified subset of properties
-  // if any specified headers are not in the table, values will be null
-    return this.map( row => {
-      const entries = headersArray.map( header => {
-        return [ header, row[header] ];
+    // returns Table with only specified subset of properties
+    // if any specified headers are not in the table, values will be null
+      const new_table = this.map( row => {
+        const entries = headersArray.map( header => {
+          return [ header, row[header] ];
+        });
+        return Object.fromEntries( entries );
       });
-      return Object.fromEntries( entries );
-    });
-  }
-
-  /**
-   * read values from sheet and interpret as a Table structure
-   * @param {object} sheet
-   * @param {number} [row_number] - row number containing headers, default 1
-   * @return {SheetTable} imported data structured as a Table-like
-   */
-  static fromSheet( sheet, row_number = 1 ) {
-    let rows = sheet.getDataRange().getValues();
-    const filler = rows.splice( 0, row_number - 1 ); // intentional side effect: remove rows above header row
-    const headers = rows.splice( 0, 1 )[0];          // intentional side effect: remove header row from rows
-    let table = SheetTable.from( rows, row => {
-      const entries = headers.map( (header,i) => {
-        return [ header, row[i] ]
-      } );
-      return Object.fromEntries( entries );
-    });
-    return table;
-  }
-
+      new_table.headers = headersArray;
+      return new_table;
+    }
+  
+    /**
+     * read values from sheet and interpret as a Table structure
+     * @param {object} sheet
+     * @param {number} [row_number] - row number containing headers, default 1
+     * @return {SheetTable} imported data structured as a Table-like
+     */
+    static fromSheet( sheet, row_number = 1 ) {
+      let rows = sheet.getDataRange().getValues();
+      const filler = rows.splice( 0, row_number - 1 ); // intentional side effect: remove rows above header row
+      const headers = rows.splice( 0, 1 )[0];          // intentional side effect: remove header row from rows
+      let table = SheetTable.from( rows, row => {
+        const entries = headers.map( (header,i) => {
+          return [ header, row[i] ]
+        } );
+        return Object.fromEntries( entries );
+      });
+      table.headers = headers;
+      return table;
+    }
+  
   /**
    * create a look-up table to associate each row with a unique id
    * indexHeader must match a value in this.headers
