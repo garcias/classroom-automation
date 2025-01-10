@@ -12,7 +12,7 @@ Manage common Google Classroom actions with Google Apps Script
 
 ### From existing spreadsheet
 
-Open the spreadsheet [Classroom automation 2.0](https://docs.google.com/spreadsheets/d/1BdS3FRFQoaiZOdvSqowEK6FDRJNdk53JlJeWEFca2LU/template/preview) and make a copy of it (along with the attached Apps Script project) in your MyDrive folder (*not* to a shared folder). (Use the same Google account that you use for Google Classroom.)
+Open the spreadsheet [Classroom automation 2](https://docs.google.com/spreadsheets/d/1BdS3FRFQoaiZOdvSqowEK6FDRJNdk53JlJeWEFca2LU/template/preview) and make a copy of it (along with the attached Apps Script project) in your MyDrive folder (*not* to a shared folder). (Use the same Google account that you use for Google Classroom.)
 
 ### From scratch
 
@@ -37,6 +37,12 @@ Select *Extensions > Apps Script*. It will open a new project. Copy and paste ap
 - ... or write your own using existing classes and functions (documentation coming soon)
 
 ## Change log
+
+### 2.2 (2024-01-09)
+
+Fix DateTime bug. Under specific conditions, an assignment with no due date would cause "Refresh assignments list" to crash. Rewrote `Assignment.due()` to detect a null due date before date conversion and handle it appropriately.
+
+Fix empty sheet bug. The "assignments" sheet could become empty after refreshing the assignment list on a course with no assignments. After that subsequent refreshes on other courses would crash because the update logic implied headers from first row. Rewrote `SheetTable` creation methods to detect and store headers explicitly.
 
 ### 2.1 (2024-08-29)
 
@@ -69,17 +75,16 @@ Fix merge submissions. Google imposed limits on how many changes an API call can
 Public beta. Initial feature set includes: viewing of courses, assignments, and submissions; merging submissions for an assignment into a single Google Doc; and batch assignment of journal-type Classwork.
 
 
-## Update procedure
+## Update from development spreadsheet and project
 
 ### In spreadsheet
 
 1. Update **about** and **versions**
 2. Set name in version history
-3. Copy spreadsheet to public folder, and redact student info in **submissions**
-4. Get url of the copy, append `/template/preview`
+3. Copy appropriate sheets; if necessary redact student info in **submissions**
+4. Copy source of app.js into contained Apps Script project
 
 ### In repo
 
 1. Update **Change log** in `README.md`
-2. In **Installation** of `README.md`, update the link to the template
-3. Copy and paste app.js and tests.js
+2. Copy and paste app.js and tests.js
