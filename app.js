@@ -8,6 +8,10 @@
 // [ ] Map the Resource-type classes to the Classroom API more consistently
 // [ ] Cache arrays as needed to minimize external API calls
 // [ ] do_batch_assign() should create link to each newly created assignment
+// [ ] Add view to show all student enrollments, to use in selection
+// [ ] Add view to show all submissions for a given student
+// [ ] Add script to merge all selected submissions for a student
+// [ ] Add script to merge all submissions, for all selected assignments, per student
 
 Settings = {
   pageSize: 30,
